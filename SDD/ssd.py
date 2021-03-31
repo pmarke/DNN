@@ -28,4 +28,5 @@ val_json_path = "./data/VOCdevkit/VOC2012/cocoformatJson/voc_2012_val.json"
 
 target_size = 224
 seed = 42
-device = "cuda"
+# device = "cuda"
+device = "cpu"
