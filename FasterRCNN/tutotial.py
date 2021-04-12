@@ -43,9 +43,9 @@ in_channels = 512 # depends on the output feature map. in vgg 16 it is equal to 
 n_anchor = 9 # Number of anchors at each location
 conv1 = torch.nn.Conv2d(in_channels, mid_channels, 3, 1, 1)
 conv1.to(device)
-reg_layer = torch.nn.Conv2d(mid_channels, n_anchor *4, 1, 1, 0)
+reg_layer = torch.nn.Conv2d(mid_channels, n_anchor *4, 1, 1, 0) # The 4 corresponds to the encoding of the box's coordinates
 reg_layer.to(device)
-cls_layer = torch.nn.Conv2d(mid_channels, n_anchor *2, 1, 1, 0) ## I will be going to use softmax here. you can equally use sigmoid if u replace 2 with 1.
+cls_layer = torch.nn.Conv2d(mid_channels, n_anchor *2, 1, 1, 0) # The 2 represents the probability of object or not object for each anchor
 cls_layer.to(device)
 
 # conv sliding layer
@@ -63,9 +63,16 @@ x = conv1(out_map) # out_map is obtained in section 1
 pred_anchor_locs = reg_layer(x)
 pred_cls_scores = cls_layer(x)
 
+# This is of size 1x22500x5
 pred_anchor_locs = pred_anchor_locs.permute(0, 2, 3, 1).contiguous().view(1, -1, 4)
+
+# This is of size 1x50x50x18
 pred_cls_scores = pred_cls_scores.permute(0, 2, 3, 1).contiguous()
-objectness_score = pred_cls_scores.view(1, 50, 50, 9, 2)[:, :, :, :, 1].contiguous().view(1, -1)
+
+# This is of size 1x22500. 
+objectness_score = pred_cls_scores.view(1, 50, 50, 9, 2)[:, :, :, :, 1].contiguous().view(1, -1) 
+
+# This is of size 1x22500x2
 pred_cls_scores  = pred_cls_scores.view(1, -1, 2)
 
 
