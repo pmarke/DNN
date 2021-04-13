@@ -1,5 +1,5 @@
 # https://medium.com/@smallfishbigsea/understand-ssd-and-implement-your-own-caa3232cd6ad
-# 
+# https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection#implementation
 
 import collections
 import numpy as np
