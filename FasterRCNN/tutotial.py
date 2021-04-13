@@ -23,13 +23,13 @@ fe = list(model.features)
 print(fe)
 
 req_features = []
-k = dummy_img.clone()
+out_map = dummy_img.clone()
 for i in fe:
-    k = i(k)
-    if k.size()[2] < 800//16:
+    out_map = i(out_map)
+    if out_map.size()[2] < 800//16:
         break
     req_features.append(i)
-    out_channels = k.size()[1]
+    out_channels = out_map.size()[1]
 print(len(req_features)) #30
 print(out_channels) # 512
 
@@ -63,7 +63,7 @@ x = conv1(out_map) # out_map is obtained in section 1
 pred_anchor_locs = reg_layer(x)
 pred_cls_scores = cls_layer(x)
 
-# This is of size 1x22500x5
+# This is of size 1x22500x4
 pred_anchor_locs = pred_anchor_locs.permute(0, 2, 3, 1).contiguous().view(1, -1, 4)
 
 # This is of size 1x50x50x18
@@ -74,6 +74,31 @@ objectness_score = pred_cls_scores.view(1, 50, 50, 9, 2)[:, :, :, :, 1].contiguo
 
 # This is of size 1x22500x2
 pred_cls_scores  = pred_cls_scores.view(1, -1, 2)
+
+# Non maximum supression (NMS)
+
+nms_thresh = 0.7
+n_train_pre_nms = 12000
+n_train_post_nms = 2000
+n_test_pre_nms = 6000
+n_test_post_nms = 300
+min_size = 16
+
+# non maximum supression
+# - Take all the roi boxes [roi_array]
+# - Find the areas of all the boxes [roi_area]
+# - Take the indexes of order the probability score in descending order [order_array]
+# keep = []
+# while order_array.size > 0:
+#   - take the first element in order_array and append that to keep  
+#   - Find the area with all other boxes
+#   - Find the index of all the boxes which have high overlap with this box
+#   - Remove them from order array
+#   - Iterate this till we get the order_size to zero (while loop)
+# - Ouput the keep variable which tells what indexes to consider.
+
+
+
 
 
 
