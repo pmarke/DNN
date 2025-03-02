@@ -1,0 +1,33 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.187.0/containers/docker-from-docker-compose
+{
+	"name": "${localWorkspaceFolderBasename}",
+	"dockerComposeFile": [
+		"../docker-compose.yml"
+	],
+	"workspaceFolder": "/home/artemis/DNN",
+	"service": "dnn_dev",
+	"customizations": {
+		"vscode": { // Set *default* container specific settings.json values on container create.
+			"settings": {
+				// This will ignore your local shell user setting for Linux since shells like zsh are typically
+				// not in base container images. You can also update this to an specific shell to ensure VS Code
+				// uses the right one for terminals and tasks. For example, /bin/bash (or /bin/ash for Alpine).
+				"terminal.integrated.shell.linux": null,
+				// Clang-format
+				"editor.defaultFormatter": "xaver.clang-format",
+				"editor.formatOnSave": true
+			},
+			// Add the IDs of extensions you want installed when the container is created.
+			// Extensions added here should also be added to docker/qt-dev/.devcontainer.json
+			"extensions": [
+				"xaver.clang-format",
+				"ms-vscode.cpptools",
+				"ms-python.python",
+				"ms-python.black-formatter",
+				"ms-vscode.cmake-tools",
+				"ms-vscode.cpptools-extension-pack"
+			]
+		}
+	}
+}

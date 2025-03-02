@@ -1,0 +1,28 @@
+
+services:
+  dnn_dev:
+    image: dnn_dev
+    runtime: nvidia
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dnn_dev
+      network: "host"
+    ports:
+      - "8000:8000"
+    privileged: true
+    network_mode: "host"
+    # user: artemis
+    init: true 
+    stdin_open: true 
+    tty: true 
+    command: bash 
+    # working_dir: /home/artemis/DNN 
+    environment:
+      DISPLAY:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+    volumes:
+      - type: bind
+        source: .
+        target: /home/artemis/DNN
