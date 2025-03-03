@@ -107,6 +107,8 @@ RUN cmake -D CMAKE_BUILD_TYPE=Release \
 
 WORKDIR $APP_USER_HOME
 
+RUN pip3 install tensorboard \ 
+
 
 # sets the work directory for the subsequent instructions. If the
 # directory does not exist, it will be created. 
