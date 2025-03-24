@@ -6,6 +6,15 @@ __pycache__/
 # C extensions
 *.so
 
+# pytorch model
+*.pth
+
+#html 
+*.html
+
+# pickle
+*.pickle
+
 # Distribution / packaging
 .Python
 build/

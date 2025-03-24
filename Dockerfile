@@ -107,7 +107,8 @@ RUN cmake -D CMAKE_BUILD_TYPE=Release \
 
 WORKDIR $APP_USER_HOME
 
-RUN pip3 install tensorboard \ 
+RUN pip3 install torchvision
+RUN pip3 install tensorboard 
 
 
 # sets the work directory for the subsequent instructions. If the
