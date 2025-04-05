@@ -94,6 +94,8 @@ class ResidualBlock(nn.Module):
             * I removed the BatchNorm2d from conv2 and placed it after adding the residual network. Previously, Batch normalization was being applied after conv2 and downsampling, but before adding the residual. This seemed 
                 like it was unnecessary, and the statistics might be not as good?
             * I removed the biases from the convolutional layers since they will be applied by the batch norm.
+            * LeakyReLU
+            * Did dropout 
     '''
 
     def __init__(self, in_channels, out_channels, stride = 1, downsample = None):
@@ -202,6 +204,7 @@ def trainModel(train_loader: torch.utils.data.DataLoader, valid_loader: torch.ut
     #Loss and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, weight_decay = 0.001, momentum = 0.9)  
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = num_epochs)
 
 
     print("starting training with num_epochs: ", num_epochs)
@@ -239,6 +242,7 @@ def trainModel(train_loader: torch.utils.data.DataLoader, valid_loader: torch.ut
             del images, labels, outputs
             print('Batch [{}/{}], Loss {}, Accuracy {}'.format(i,num_train_batches,loss.item(), accuracy))
 
+        scheduler.step()
         print ('Epoch [{}/{}], Loss: {:.4f}' 
                         .format(epoch+1, num_epochs, loss.item()))
 
@@ -301,7 +305,7 @@ if __name__ =='__main__':
     num_classes = 10
     # num_epochs = 20
     num_epochs = 10
-    learning_rate = 0.0001
+    learning_rate = 0.01
 
     num_train_batches = len(train_loader)
     print("num_train_batches", num_train_batches)

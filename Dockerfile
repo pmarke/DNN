@@ -110,6 +110,25 @@ WORKDIR $APP_USER_HOME
 RUN pip3 install torchvision
 RUN pip3 install tensorboard 
 
+# Qt 5 dependencies
+RUN apt install -yq \
+build-essential \ 
+libgl1-mesa-dev \
+libxkbcommon-x11-0 \
+libxcb-image0 \
+libxcb-keysyms1 \
+libxcb-render-util0 \
+libxcb-xinerama0 \
+libxcb-icccm4 \
+libxcb-cursor0
+
+# matplotlib dependencies
+RUN pip3 install tk \ 
+    PyGObject \
+    pycairo \
+    Tornado \
+    PyQt5
+
 
 # sets the work directory for the subsequent instructions. If the
 # directory does not exist, it will be created. 

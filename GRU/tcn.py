@@ -21,7 +21,7 @@ class CustomTemperatureDataset(Dataset):
         self.avgData = self.slidingWindowAvg(self.data.values, 30)
 
         # self.avgData = np.cos(np.pi/500*np.linspace(0,1000,10000)).reshape(-1,1)
-        print(self.avgData.shape)
+        # print(self.avgData.shape)
 
         self.scaledData, self.dataOffset, self.dataScale = self.scaleMinMax(self.avgData)
         self.inputs, self.lables = self.createDataset(self.scaledData, self.timeSteps)
@@ -43,7 +43,7 @@ class CustomTemperatureDataset(Dataset):
             self.inputs = self.inputs[indices[split_index:]]
             self.lables = self.lables[indices[split_index:]]
 
-        self.inputs = torch.from_numpy(self.inputs).float().unsqueeze(2)
+        self.inputs = torch.from_numpy(self.inputs).float().unsqueeze(1)
         print("input shape: ", self.inputs.shape)
         # print(self.inputs[0,:,:])
         self.lables = torch.from_numpy(self.lables).float()
@@ -73,7 +73,6 @@ class CustomTemperatureDataset(Dataset):
 
     def plotFirst10(self):
         '''Plots the first 10 inputs, labels, and the original scaled data'''
-
         # Plot the first 10 inputs and labels
         fig, axs = plt.subplots(10, 1, figsize=(10, 20))
         for i in range(10):
@@ -123,25 +122,57 @@ class CustomTemperatureDataset(Dataset):
 
         X = np.array(X)
         y = np.array(y)
-        X.reshape(X.shape[0],X.shape[1],1)
+        X.reshape(X.shape[0],X.shape[1])
         return X,y
 
-class TemperatureGRU(nn.Module):
+class TemperatureTcn(nn.Module):
     def __init__(self):
-        super(TemperatureGRU, self).__init__()
-        self.gru = nn.GRU(input_size=1, hidden_size=50, num_layers=2, batch_first=True, dropout=0.2)
-        self.fc = nn.Linear(50,1)
+        super(TemperatureTcn, self).__init__()
+        
+        #input is 100 output is 50
+        self.layer1 = nn.Sequential(
+                    nn.Conv1d(1, 5, kernel_size = 10, stride = 2, padding = 4, bias = False),
+                    nn.BatchNorm1d(5),
+                    nn.LeakyReLU())
+        
+        # input is 50, output is 25
+        self.layer2 = nn.Sequential(
+                    nn.Conv1d(5, 10, kernel_size = 10, stride = 2, padding = 4, bias = False),
+                    nn.BatchNorm1d(10),
+                    nn.LeakyReLU())
+        
+        # input is 25, output is 13
+        self.layer3 = nn.Sequential(
+                    nn.Conv1d(10, 5, kernel_size = 5, stride = 2, padding = 2, bias = False),
+                    nn.BatchNorm1d(5),
+                    nn.LeakyReLU())
+        
+        # input is 12, output is 7
+
+        self.layer4 = nn.Sequential(
+                    nn.Conv1d(5, 1, kernel_size = 5, stride = 2, padding = 2, bias = False),
+                    nn.BatchNorm1d(1),
+                    nn.LeakyReLU())
+        
+        self.fc = nn.Linear(7,1)
         self.sig = nn.Sigmoid()
 
     def forward(self,x):
-        x,_ = self.gru(x)
-        # The output of the GRU is a tensor of shape (batch_size, seq_length, hidden_size)
-        # and gives you the hidden state at each time step. We are only interested in the final hidden state. 
-        x = x[:,-1,:]
+        # print("i:",x.shape)
+        x = self.layer1(x)
+        # print("o1", x.shape)
+        x = self.layer2(x)
+        # print("o2", x.shape)
+        x = self.layer3(x)
+        # print("o3", x.shape)
+        x = self.layer4(x)
+        # print("o4", x.shape)
+        x = x.view(x.size(0), -1)
+        # print(x.shape)
         x = self.fc(x)
-        x = torch.squeeze(x)
-        # x = self.sig(x)
-        return x
+        # print("fc", x.shape)
+        x = self.sig(x)
+        return x.squeeze()
 
 
 def trainModel(trainLoader: DataLoader, model : nn.Module, numEpochs, learningRate: float, enableTensorboard: bool):
@@ -223,7 +254,7 @@ def testModel(testLoader: DataLoader, model: nn.Module):
 if __name__ =='__main__':
 
     dataDir = '/home/artemis/DNN/datasets/GRU/tempData.csv'
-    modelPath = "/home/artemis/DNN/GRU/temperatureModel.pth"
+    modelPath = "/home/artemis/DNN/GRU/tcnModel.pth"
     writer = SummaryWriter("GRU/runs/tensorboard")
 
 
@@ -241,14 +272,14 @@ if __name__ =='__main__':
     trainLoader = DataLoader(trainDataset, batch_size=batchSize, shuffle=True)
     testLoader = DataLoader(testDataset, batch_size=batchSize, shuffle=True)
 
-    numEpochs = 40 
-    learningRate = 0.001
+    numEpochs = 200 
+    learningRate = 0.01
 
-    model = TemperatureGRU().to(device)
+    model = TemperatureTcn().to(device)
     if os.path.exists(modelPath):
         model.load_state_dict(torch.load(modelPath))
 
-    trainModel(trainLoader,model,numEpochs,learningRate,True);
+    trainModel(trainLoader,model,numEpochs,learningRate,True)
 
     torch.save(model.state_dict(),modelPath)
 
