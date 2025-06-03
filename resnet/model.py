@@ -290,7 +290,7 @@ if __name__ =='__main__':
     print("using cuda: ", torch.cuda.is_available())
 
 
-    batch_size = 40
+    batch_size = 120
  
 
     train_loader, valid_loader = data_loader(data_dir='./datasets/cifar10',

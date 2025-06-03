@@ -5,8 +5,10 @@ LABEL version="1.0"
 LABEL description="This docker file is intended to create a container for practicing DNN. The main libraries that it contains are torch and opencv with cuda and python enabled."
 
 ARG USERNAME=artemis
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
+ARG USER_UID
+ARG USER_GID
+RUN echo "My UID : $USER_UID"
+RUN echo "My GID : $USER_GID"
 
 # Add the user
 RUN groupadd --gid $USER_GID $USERNAME
@@ -18,8 +20,9 @@ RUN echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
 # RUN mkdir /home/$USERNAME/bin && chown $USERNAME:$USERNAME /home/$USERNAME/bin
 
 
-RUN apt-get update && apt-get upgrade -y \
-    && apt install -yq \
+RUN apt-get update && apt-get upgrade -y 
+
+RUN apt-get install -yq \
     wget \
     unzip \
     git \
@@ -129,6 +132,9 @@ RUN pip3 install tk \
     Tornado \
     PyQt5
 
+# flash attention
+RUN pip3 install ninja
+RUN MAKEFLAGS="-j6" pip3 install --no-build-isolation flash-attn
 
 # sets the work directory for the subsequent instructions. If the
 # directory does not exist, it will be created. 

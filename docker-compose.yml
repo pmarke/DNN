@@ -5,6 +5,9 @@ services:
     runtime: nvidia
     build:
       context: .
+      args:
+        USER_UID: ${HOST_UID:-1000}
+        USER_GID: ${HOST_GID:-1000}
       dockerfile: Dockerfile
       target: dnn_dev
       network: "host"
@@ -12,7 +15,7 @@ services:
       - "8000:8000"
     privileged: true
     network_mode: "host"
-    # user: artemis
+    user: artemis
     init: true 
     stdin_open: true 
     tty: true 
