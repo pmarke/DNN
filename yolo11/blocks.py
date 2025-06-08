@@ -156,28 +156,52 @@ class SppfBlock(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 
-class PartialSpatialAttention(nn.Module):
-    def __init(self,ch,num_head):
+class ConvMultiHeadFlashAttention(nn.Module):
+    def __init__(self, ch, num_head):
         '''
-        The multihead attention module that interfaces with flash attention
+        Multi-head attention with FlashAttention using convolutional QKV projection
         '''
         super().__init__()
         self.num_head = num_head 
-        self.dim_head = ch / num_head  # The size of the values
-        self.dim_key = self.dim_head // 2 # The size of the keys and queries 
-        self.scale = self.dim_key ** -0.5
+        self.dim_head = ch // num_head
+        assert ch % num_head == 0, "ch must be divisible by num_head"
+        assert self.dim_head % 2 == 0, "dim_head must be divisible by 2"
 
-        self.qkv = nn.Conv2d(ch, ch + self.dim_key * num_head * 2, kernel_size=3, padding=1,groups=ch)
+        self.scale = self.dim_head ** -0.5
+
+        chout = self.dim_head * num_head * 3
+        self.qkv = nn.Conv2d(ch, chout, kernel_size=3, padding=1)
 
 
     def forward(self,x):
-        b,c,h,w = x.shape 
+        b, c, h, w = x.shape
+        qkv = self.qkv(x)  # [b, chout, h, w]
 
-        qkv = self.qkv(x) 
+        # Flatten spatial dims
+        qkv = qkv.view(b, -1, h * w).transpose(1, 2)  # [b, hw, chout]
 
+        total_dim = self.num_head * self.dim_head
+        q_dim = self.num_head * self.dim_head
+        k_dim = q_dim
+        v_dim = total_dim
 
-        # out (b,seqlen, nheads, headdim)
-        out = flash_attn_qkvpacked_func(qkv)
+        # Split into q, k, v
+        q, k, v = torch.split(qkv, [q_dim, k_dim, v_dim], dim=-1)
+
+        # Reshape for flash attention
+        def reshape_qkv(x, d): return x.view(b, h*w, self.num_head, d)
+
+        q = reshape_qkv(q, self.dim_head)
+        k = reshape_qkv(k, self.dim_head)
+        v = reshape_qkv(v, self.dim_head)
+
+        qkv_packed = torch.stack([q, k, v], dim=2)  # [b, seqlen, 3, nheads, dim]
+
+        out = flash_attn_qkvpacked_func(qkv_packed, dropout_p=0.0, softmax_scale=self.scale, causal=False)
+
+        out = out.view(b, h*w, -1).transpose(1, 2).view(b, c, h, w)
+
+        return out
 
 
 # class C2PSA(nn.Module):
