@@ -27,7 +27,15 @@
 				"ms-python.black-formatter",
 				"ms-vscode.cmake-tools",
 				"ms-vscode.cpptools-extension-pack"
-			]
+			],
+			"mounts": [
+				"type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix"
+			],
+			"containerEnv": {
+				"QT_QPA_PLATFORM": "xcb",
+				"GDK_BACKEND": "x11"
+			}
+
 		}
 	}
 }

@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "yolo_training",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/yolo11/training.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}

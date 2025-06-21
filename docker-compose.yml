@@ -24,6 +24,8 @@ services:
     environment:
       DISPLAY:
       XAUTHORITY:
+      QT_QPA_PLATFORM: xcb
+      GDK_BACKEND: x11
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: all
       GNUPLOT_DRIVER_DIR: "/usr/local/libexec/gnuplot/5.4"
