@@ -67,6 +67,9 @@ class Head(torch.nn.Module):
     strides = torch.empty(0)
 
     def __init__(self, nc=80, filters=()):
+        '''
+        filters: the width of the different pyramid levels that detection is done on
+        '''
         super().__init__()
         self.ch = 16  # DFL channels
         self.nc = nc  # number of classes
@@ -74,6 +77,8 @@ class Head(torch.nn.Module):
         self.no = nc + self.ch * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
 
+        print("f",len(filters))
+    
         box = max(64, filters[0] // 4)
         cls = max(80, filters[0], self.nc)
 
@@ -90,6 +95,7 @@ class Head(torch.nn.Module):
             Conv(cls, cls, torch.nn.SiLU(), k=3, p=1, g=cls),
             Conv(cls, cls, torch.nn.SiLU()),
             torch.nn.Conv2d(cls, out_channels=self.nc,kernel_size=1)) for x in filters)
+
 
     def forward(self, x):
         # The boxes are [l,r,u,d] consisting of 16 bins each
@@ -137,7 +143,27 @@ class YOLO(torch.nn.Module):
     def forward(self, x):
         x = self.net(x)
         x = self.fpn(x)
-        return self.head(list(x))
+        return self.head(list(x)) 
+    
+    @staticmethod
+    def init_weights(m):
+        if isinstance(m, nn.Linear):
+            nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            if hasattr(m, 'bias') and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Conv2d):
+            if m.out_channels == 80:
+                # init classification bias to low confidence
+                # log(p/(1-p)) where p is small, e.g. p=0.01
+                if hasattr(m, 'bias') and m.bias is not None:
+                    prior_prob = 0.01
+                    bias_value = -torch.log(torch.tensor((1 - prior_prob) / prior_prob))
+                    nn.init.constant_(m.bias, 0)
+            else:
+                # He init for ReLU, or Xavier for smoother activations
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+
+
 
     def fuse(self):
         for m in self.modules():

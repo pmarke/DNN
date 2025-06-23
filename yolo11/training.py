@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision import datasets
 from torchvision import transforms
+import torchvision.tv_tensors
 from torchvision.utils import draw_bounding_boxes 
 import matplotlib.pyplot as plt
 from torchvision.transforms.functional import to_pil_image
@@ -9,23 +10,26 @@ from torchvision.transforms import ToTensor
 from pycocotools.coco import COCO 
 import torchvision.transforms.v2 as v2 
 from torchvision import tv_tensors
-from model import YOLOv11
+from model import YOLOv11, YOLO
 import os
 import torch.nn.functional as F 
 import torchvision
 
 from torchvision.ops import box_convert, box_iou
+from torchvision.ops import nms
 
 IMG_PATH_VAL = "/home/artemis/DNN/datasets/coco/val2017"
 IMG_PATH_TRAIN = "/home/artemis/DNN/datasets/coco/train2017"
 ANNOTATION_PATH_VAL ="/home/artemis/DNN/datasets/coco/annotations_trainval2017/annotations/instances_val2017.json"
 ANNOTATION_PATH_TRAIN ="/home/artemis/DNN/datasets/coco/annotations_trainval2017/annotations/instances_train2017.json"
 
+
 class CocoDataset(torch.utils.data.Dataset):
-    def __init__(self, img_dir, annotation_file, transforms=None):
+    def __init__(self, img_dir, annotation_file, max_samples = None, transforms=None):
         self.img_dir = img_dir
         self.annotation_file = annotation_file
         self.transforms = transforms
+        self.max_samples = max_samples
         dataset = datasets.CocoDetection(img_dir, annotation_file)
         dataset = datasets.wrap_dataset_for_transforms_v2(dataset, target_keys=("boxes", "labels"))
 
@@ -36,6 +40,11 @@ class CocoDataset(torch.utils.data.Dataset):
         self.cat_id_to_contiguous_id = {
             cat_id: idx for idx, cat_id in enumerate(self.coco.getCatIds())
         }
+
+        print("cat id to contiguous id:",self.cat_id_to_contiguous_id)
+        for key in self.cat_id_to_contiguous_id:
+            print("Contiguous id {} to name {}".format(self.cat_id_to_contiguous_id[key], self.cat_id_to_name[key]))
+
         self.contiguous_id_to_cat_id = {v: k for k, v in self.cat_id_to_contiguous_id.items()}
 
         # Filter out samples without "boxes" or "labels"
@@ -43,6 +52,10 @@ class CocoDataset(torch.utils.data.Dataset):
             (img, target) for img, target in dataset
             if "labels" in target and "boxes" in target and len(target["boxes"]) > 0
         ]
+
+        if(self.max_samples is not None):
+            self.max_samples = min(self.max_samples,len(self.dataset))
+            self.dataset = self.dataset[:self.max_samples]
 
         if len(self.dataset) == 0:
             raise ValueError("No valid samples found in the dataset.")
@@ -71,7 +84,7 @@ class CocoDataset(torch.utils.data.Dataset):
 
     
     def get_label_names(self, labels_tensor):
-        return [self.cat_id_to_name[label.item()] for label in labels_tensor]
+        return [self.cat_id_to_name[self.contiguous_id_to_cat_id[label.item()]] for label in labels_tensor]
 
     def display_sample(self, img, target):
 
@@ -81,6 +94,10 @@ class CocoDataset(torch.utils.data.Dataset):
 
 
         img_tensor = (img * 255).to(torch.uint8) 
+
+        for box, label in zip(target['boxes'],target['labels']):
+            area = torchvision.ops.box_area(box.unsqueeze(0))
+            print(self.cat_id_to_name[self.contiguous_id_to_cat_id[label.item()]],area, box)
 
         label_strings = self.get_label_names(target['labels'])
         img_with_boxes = draw_bounding_boxes(img_tensor, boxes=target['boxes'], labels=label_strings, width=2, colors="red")
@@ -100,7 +117,7 @@ def collate_fn(batch):
     images = torch.stack(images, 0)
     return images, list(targets)
 
-def CreateCocoDataLoader(img_dir, annotation_file, batch_size=32, shuffle=True):
+def CreateCocoDataLoader(img_dir, annotation_file, batch_size=32, shuffle=True, max_samples=None):
 
 
     transforms = v2.Compose([v2.Resize((640, 640)),
@@ -108,7 +125,7 @@ def CreateCocoDataLoader(img_dir, annotation_file, batch_size=32, shuffle=True):
                              v2.ToDtype(torch.float32, scale=True), 
                              v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
-    dataset = CocoDataset(img_dir, annotation_file, transforms=transforms)
+    dataset = CocoDataset(img_dir, annotation_file,max_samples= max_samples, transforms=transforms)
 
     # img, target = dataset[0]
     # dataset.display_sample(img, target)
@@ -143,6 +160,8 @@ def dfl_loss(pred_logits, target, n_bins=16):
 
     # Get log probabilities
     log_probs = F.log_softmax(pred_logits, dim=1)  # [N, n_bins]
+    # print("log_probs", log_probs)
+    # print("target",target)
 
     # Negative log-likelihood loss: only on two closest bins
     loss = - (log_probs[range(len(target)), l] * wl +
@@ -177,6 +196,13 @@ class FocalLoss(nn.Module):
     def forward(self, logits, targets):
         # logits: [N, C] (raw class predictions for N samples)
         # targets: [N] (true class indices in 0 to C-1)
+
+        # print("l",logits)
+        # print("t",targets)
+        if(int(targets.item())==0):
+            alpha = 0.01
+
+        # print(targets,logits.argmax(dim=1))
 
         ce_loss = F.cross_entropy(logits, targets, reduction='none')  # base cross-entropy
         pt = torch.exp(-ce_loss)  # probability of the correct class
@@ -213,7 +239,7 @@ class DetectionLoss(nn.Module):
 
     def forward(self, outputs, targets, anchors=None):
         """
-        outputs: list of 3 three tensors (b, n_classes + 4*n_bins,lw,lh) for each FPN level
+        outputs: list of 3 three tensors (b, 4*n_bins+n_classes ,lw,lh) for each FPN level
         targets: list of ground truth boxes per image, each is a tensor [N_i, 6]
             - columns: [class, x_center, y_center, width, height, layer_index]
         anchors: list of anchor center coordinates (not used here directly, but useful for GT assignment)
@@ -225,7 +251,10 @@ class DetectionLoss(nn.Module):
 
         # iterate through each layer
         for layer_idx, feat in enumerate(outputs):
-            B, C, H, W = feat.shape
+            if torch.isnan(feat).any() or torch.isinf(feat).any():
+                print("Invalid layer output detected:", layer_idx)
+            B, C, H, W = feat.shape 
+            # the box logits are first and the class logits are second n
             dist_pred = feat[:, :4 * self.n_bins, :, :]  # DFL logits
             cls_pred = feat[:, 4 * self.n_bins:, :, :]   # class logits
 
@@ -238,6 +267,7 @@ class DetectionLoss(nn.Module):
 
             #iterate through each batch
             for b in range(B):
+                # all of the targets in a single image. Shape is [N,6] and type [class, x_center, y_center, width, height, layer_index]
                 image_targets = targets[b]  # shape [N, 6]
                 layer_targets = image_targets[image_targets[:, -1] == layer_idx]
 
@@ -266,15 +296,13 @@ class DetectionLoss(nn.Module):
                     # pred_box = self.integral(pred_distr)  # [4] decoded distances
 
                     # Compute ground truth box in l/t/r/b format relative to center
-                    x1 = cx - w / 2
-                    y1 = cy - h / 2
-                    x2 = cx + w / 2
-                    y2 = cy + h / 2
-                    l = max(cx - x1, 0)
-                    t_ = max(cy - y1, 0)
-                    r = max(x2 - cx, 0)
-                    b_ = max(y2 - cy, 0)
+                    l =w/2.0
+                    t_ =h/2.0
+                    r =w/2.0
+                    b_ = h/2.0
                     gt_box = torch.tensor([l * W, t_ * H, r * W, b_ * H], device=device)
+
+                    # print("gt_box", gt_box)
 
                     # Compute classification loss for this point
                     total_cls_loss += self.focal_loss(
@@ -285,18 +313,18 @@ class DetectionLoss(nn.Module):
                     # Compute bounding box regression loss (L1 between predicted and GT distances)
                     # total_box_loss += F.l1_loss(pred_box, gt_box, reduction='mean')
 
-                for i in range(4):
-                    pred_logits = pred_distr[i].unsqueeze(0)  # [1, n_bins]
-                    target = gt_box[i].unsqueeze(0)           # [1]
-                    dfl = dfl_loss(pred_logits, target, n_bins=self.n_bins)
-                    total_box_loss += dfl
+                    for i in range(4):
+                        pred_logits = pred_distr[i].unsqueeze(0)  # [1, n_bins]
+                        target = gt_box[i].unsqueeze(0)           # [1]
+                        dfl = dfl_loss(pred_logits, target, n_bins=self.n_bins)
+                        total_box_loss += dfl
 
         # Combine losses with weights
         total_loss = self.cls_weight * total_cls_loss + self.box_weight * total_box_loss
         return total_loss, total_cls_loss, total_box_loss
 
 
-def assign_targets_to_levels_yolov8(targets, image_size, grid_sizes, strides, center_radius=2.5, scale_ranges=None):
+def assign_targets_to_levels_yolov8(targets, image_size, grid_sizes, strides, center_radius=0, scale_ranges=None):
     """
     Modified YOLOv8-style assignment function.
     Each GT box is assigned to grid cells within a radius around its center
@@ -347,6 +375,7 @@ def assign_targets_to_levels_yolov8(targets, image_size, grid_sizes, strides, ce
 
             # Convert center radius to feature map grid units
             radius_feat = center_radius / stride
+
 
             for i in range(len(level_targets)):
                 gx = cx_pix[i] / stride
@@ -408,12 +437,18 @@ def convert_targets_for_yolo(batched_targets, image_size):
         if boxes.numel() > 0:
             cxcywh = torchvision.ops.box_convert(boxes, in_fmt='xyxy', out_fmt='cxcywh')
             cxcywh /= image_size
+
+            # Check for invalid values in bounding boxes
+            if torch.isnan(cxcywh).any() or torch.isinf(cxcywh).any():
+                print("Invalid bounding boxes detected:", cxcywh)
         else:
             cxcywh = torch.zeros((0, 4), device=boxes.device) 
             print('no boxes found')
 
-        # Create the YOLO target tensor: [class, cx, cy, w, h]
+        # Check for invalid labels
         if labels.numel() > 0:
+            if torch.isnan(labels).any() or torch.isinf(labels).any():
+                print("Invalid labels detected:", labels)
             yolo_target = torch.cat((labels.unsqueeze(1).float(), cxcywh), dim=1)
             yolo_targets.append(yolo_target)
         else:
@@ -438,9 +473,9 @@ def trainModel(train_loader: torch.utils.data.DataLoader,
 
     # Set loss function
     criterion = DetectionLoss(n_classes=80, n_bins=16)
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, weight_decay=0.001, momentum=0.9)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, weight_decay=0.01, momentum=0.8)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
-    scaler = torch.cuda.amp.GradScaler()  # Corrected GradScaler initialization
+    # scaler = torch.cuda.amp.GradScaler()  # Corrected GradScaler initialization
 
     image_size = 640
     strides = [8, 16, 32]
@@ -462,21 +497,24 @@ def trainModel(train_loader: torch.utils.data.DataLoader,
 
             # Move each image's assigned targets to the correct device
             assigned_targets = [t.to(device) for t in assigned_targets]
-            print(assigned_targets)
+            # print(assigned_targets)
 
             optimizer.zero_grad()  # Ensure gradients are cleared before forward pass
 
-            with torch.cuda.amp.autocast(True):  # Use mixed precision for faster training
+            # with torch.cuda.amp.autocast(True):  # Use mixed precision for faster training
                 # outputs a list of tensors for each layer of shape (b,n_class + 4*n_bins, lw,lh)
-                outputs = model(images)
-                loss, cls_loss, box_loss = criterion(outputs, assigned_targets)
+            outputs = model(images)
+            loss, cls_loss, box_loss = criterion(outputs, assigned_targets)
 
             # print(f"Assigned targets: {assigned_targets}")
             # print(f"Predictions: {outputs}")
 
-            scaler.scale(loss).backward()  # Scale loss for mixed precision
-            scaler.step(optimizer)
-            scaler.update()
+            # scaler.scale(loss).backward()  # Scale loss for mixed precision
+            # scaler.step(optimizer)
+            # scaler.update()
+            loss.backward() 
+            optimizer.step() 
+            torch.cuda.empty_cache()
 
             print(f'Batch [{i+1}/{num_train_batches}], Loss: {loss.item():.4f}, '
                   f'Cls: {cls_loss.item():.4f}, Box: {box_loss.item():.4f}')
@@ -488,49 +526,53 @@ def trainModel(train_loader: torch.utils.data.DataLoader,
         print(f'Epoch [{epoch+1}/{num_epochs}] completed.\n')
 
 
-
-
-def decode_predictions(outputs, strides, n_bins=16, score_threshold=0.3):
+def decode_predictions(outputs, strides, n_bins=16, score_threshold=0.3, iou_threshold=0.5):
     """
-    Decodes YOLOv8-style model outputs to bounding boxes.
+    Decodes YOLO-style model outputs to bounding boxes with class-aware NMS.
 
     Args:
-        outputs: List of (cls_logits, dist_preds) per FPN level.
+        outputs: List of output tensors per FPN level: [B, C, H, W]
         strides: List of strides for each level.
-        n_bins: Number of bins in DFL.
+        n_bins: Number of DFL bins.
         score_threshold: Minimum confidence to keep predictions.
+        iou_threshold: IoU threshold for NMS.
 
     Returns:
         List of detections: [B, N, 6] = [x1, y1, x2, y2, score, class]
     """
     results = []
-    integral = Integral(n_bins=n_bins).to(outputs[0][0].device)
+    integral = Integral(n_bins=n_bins).to(outputs[0].device)
 
-    for b in range(outputs[0][0].shape[0]):
+    for b in range(outputs[0].shape[0]):  # batch size
         all_boxes = []
         all_scores = []
         all_labels = []
 
-        for level, (cls_logits, dist_pred) in enumerate(outputs):
-            B, C, H, W = cls_logits.shape
+        for level, output in enumerate(outputs):
+            B, C, H, W = output.shape
             stride = strides[level]
 
-            cls_logits = cls_logits[b].permute(1, 2, 0).reshape(-1, C)        # [H*W, C]
-            dist_pred = dist_pred[b].permute(1, 2, 0).reshape(H*W, 4, n_bins) # [H*W, 4, n_bins]
+            output_b = output[b]  # shape: [C, H, W]
+            output_b = output_b.permute(1, 2, 0).reshape(-1, C)  # [H*W, C]
 
-            scores = torch.softmax(cls_logits, dim=-1)                        # class probabilities
-            confidences, labels = scores.max(dim=1)                          # best class per location
+            box_logits = output_b[:, :4 * n_bins].reshape(-1, 4, n_bins)  # [N, 4, n_bins]
+            cls_logits = output_b[:, 4 * n_bins:]  # [N, num_classes]
 
-            keep = confidences > score_threshold
+            probs = torch.softmax(cls_logits, dim=-1)
+            conf, labels = probs.max(dim=1)
+
+            keep = conf > score_threshold
             if keep.sum() == 0:
                 continue
 
-            scores = confidences[keep]
+            box_logits = box_logits[keep]
+            scores = conf[keep]
             labels = labels[keep]
-            preds = dist_pred[keep]
 
-            box_dists = integral(preds)  # [N, 4]: [l, t, r, b]
-            grid_y, grid_x = torch.div(torch.arange(H*W)[keep], W, rounding_mode='floor'), torch.arange(H*W)[keep] % W
+            box_dists = integral(box_logits)  # [N, 4]
+            idxs = torch.arange(H * W, device=scores.device)[keep]
+            grid_y = idxs // W
+            grid_x = idxs % W
 
             x_center = (grid_x + 0.5) * stride
             y_center = (grid_y + 0.5) * stride
@@ -542,9 +584,23 @@ def decode_predictions(outputs, strides, n_bins=16, score_threshold=0.3):
 
             boxes = torch.stack([x1, y1, x2, y2], dim=1)
 
-            all_boxes.append(boxes)
-            all_scores.append(scores)
-            all_labels.append(labels)
+            # Class-aware NMS
+            final_boxes, final_scores, final_labels = [], [], []
+            for cls in labels.unique():
+                cls_mask = labels == cls
+                cls_boxes = boxes[cls_mask]
+                cls_scores = scores[cls_mask]
+                cls_labels = labels[cls_mask]
+
+                keep_idx = nms(cls_boxes, cls_scores, iou_threshold)
+                final_boxes.append(cls_boxes[keep_idx])
+                final_scores.append(cls_scores[keep_idx])
+                final_labels.append(cls_labels[keep_idx])
+
+            if final_boxes:
+                all_boxes.append(torch.cat(final_boxes, dim=0))
+                all_scores.append(torch.cat(final_scores, dim=0))
+                all_labels.append(torch.cat(final_labels, dim=0))
 
         if all_boxes:
             boxes = torch.cat(all_boxes, dim=0)
@@ -552,15 +608,16 @@ def decode_predictions(outputs, strides, n_bins=16, score_threshold=0.3):
             labels = torch.cat(all_labels, dim=0)
             result = torch.cat([boxes, scores.unsqueeze(1), labels.unsqueeze(1).float()], dim=1)
         else:
-            result = torch.zeros((0, 6), device=cls_logits.device)
+            result = torch.zeros((0, 6), device=outputs[0].device)
 
         results.append(result)
 
     return results
 
-def validate_model(model, val_loader, image_size=640, n_bins=16, iou_threshold=0.5):
+
+def validate_model(model, val_loader, image_size=640, n_bins=16, iou_threshold=0.5, score_threshold=0.3):
     """
-    Evaluates model on the validation set using IoU thresholding.
+    Evaluates model on the validation set using IoU thresholding with class-aware NMS.
 
     Args:
         model: YOLOv8-style model
@@ -568,35 +625,42 @@ def validate_model(model, val_loader, image_size=640, n_bins=16, iou_threshold=0
         image_size: int, assumed square
         n_bins: number of DFL bins
         iou_threshold: float, IoU threshold for true positive
+        score_threshold: float, minimum confidence to retain predictions
 
     Prints:
         Precision, Recall, and number of matched GTs
     """
-    model.eval()
     strides = [8, 16, 32]
     total_preds = 0
     total_gts = 0
     true_positives = 0
 
     with torch.no_grad():
+        model.train()
         for images, coco_targets in val_loader:
             images = images.to(device)
             yolo_targets = convert_targets_for_yolo(coco_targets, image_size)
 
-            with torch.autocast(device_type=device.type, dtype=torch.float16):
-                outputs = model(images)
+            outputs = model(images)
 
-            decoded = decode_predictions(outputs, strides=strides, n_bins=n_bins)
+            # Format: [B, N, 6] = [x1, y1, x2, y2, score, class]
+            decoded = decode_predictions(
+                outputs,
+                strides=strides,
+                n_bins=n_bins,
+                score_threshold=score_threshold,
+                iou_threshold=iou_threshold
+            )
 
             for preds, gt in zip(decoded, yolo_targets):
                 if len(preds) == 0 or len(gt) == 0:
                     continue
 
-                pred_boxes = preds[:, :4]  # [N, 4]
-                gt_boxes = gt[:, 1:5] * image_size  # un-normalize
+                pred_boxes = preds[:, :4]  # [N_pred, 4]
+                gt_boxes = gt[:, 1:5] * image_size  # [N_gt, 4], un-normalized
+
                 ious = box_iou(pred_boxes, gt_boxes)  # [N_pred, N_gt]
 
-                # Greedy matching
                 matched_gt = set()
                 for i in range(ious.size(0)):
                     max_iou, idx = ious[i].max(0)
@@ -604,8 +668,8 @@ def validate_model(model, val_loader, image_size=640, n_bins=16, iou_threshold=0
                         true_positives += 1
                         matched_gt.add(idx.item())
 
-                total_preds += len(preds)
-                total_gts += len(gt)
+                total_preds += len(pred_boxes)
+                total_gts += len(gt_boxes)
 
     precision = true_positives / total_preds if total_preds > 0 else 0
     recall = true_positives / total_gts if total_gts > 0 else 0
@@ -617,6 +681,7 @@ def validate_model(model, val_loader, image_size=640, n_bins=16, iou_threshold=0
     print(f"  Recall:    {recall:.4f}")
 
 
+
 if __name__ =='__main__':
 
     modelPath = "/home/artemis/DNN/yolo11/model.pth"
@@ -624,15 +689,31 @@ if __name__ =='__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("using cuda: ", torch.cuda.is_available())
 
-    batch_size = 4
-    coco_dataloader_val = CreateCocoDataLoader(IMG_PATH_VAL, ANNOTATION_PATH_VAL, batch_size=batch_size)
+    batch_size = 10
+
+    # transforms = v2.Compose([v2.Resize((640, 640)),
+    #                          v2.ToImage(), 
+    #                          v2.ToDtype(torch.float32, scale=True), 
+    #                          v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+    # transforms = v2.Compose([v2.Resize((640, 640)),
+    #                          v2.ToImage(), 
+    #                          v2.ToDtype(torch.float32, scale=True)])
+
+    # dataset = CocoDataset(IMG_PATH_VAL, ANNOTATION_PATH_VAL,max_samples= None, transforms=transforms)
+    # img,target = dataset.__getitem__(0)
+    # dataset.display_sample(img,target)
+  
+    coco_dataloader_val = CreateCocoDataLoader(IMG_PATH_VAL, ANNOTATION_PATH_VAL,
+                                                batch_size=batch_size, shuffle=True,max_samples=None)
+    
 
     # coco_dataloader_train = CreateCocoDataLoader(IMG_PATH_TRAIN, ANNOTATION_PATH_TRAIN, batch_size=batch_size)
 
 
-    # num_epochs = 20
-    num_epochs = 1
-    learning_rate = 0.01
+
+    # num_epochs = 200
+    num_epochs = 100
+    learning_rate = 0.001
 
     num_val_batches = len(coco_dataloader_val)
     print("num_val_batches", coco_dataloader_val)
@@ -643,16 +724,31 @@ if __name__ =='__main__':
 
     if os.path.exists(modelPath):
         model.load_state_dict(torch.load(modelPath))
+    else: 
+        print("initializing weights")
+        
+        model.apply(YOLO.init_weights)
+
+    for name, param in model.named_parameters():
+        if torch.isnan(param).any():
+            print(f"NaNs found in {name}")
+
 
 
     trainModel(coco_dataloader_val, coco_dataloader_val, model, num_val_batches)
+
+    # validate_model(model, coco_dataloader_val, image_size=640, n_bins=16, iou_threshold=0.5, score_threshold=0.3)
 
     torch.save(model.state_dict(), modelPath)
 
     # testModel(test_loader,model)
 
+
     # Tensorboard embedding projector: https://www.youtube.com/watch?v=RLqsxWaQdHE&ab_channel=AladdinPersson
     # https://pytorch.org/tutorials/intermediate/tensorboard_tutorial.html
+
+
+
 
 
 

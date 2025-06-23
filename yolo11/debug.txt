@@ -1,0 +1,127 @@
+potted plant tensor([2579.0042]) tensor([236.9800, 214.0995, 261.6800, 318.5127])
+tv tensor([21282.2402]) tensor([  7.0300, 252.0338, 156.3500, 394.5615])
+tv tensor([9622.0625]) tensor([557.2100, 314.2761, 638.5600, 432.5559])
+chair tensor([8651.2383]) tensor([358.9800, 327.5869, 414.9800, 482.0733])
+chair tensor([9147.8252]) tensor([290.6900, 327.5117, 352.5200, 475.4630])
+chair tensor([3687.7104]) tensor([413.2000, 335.0385, 443.3700, 457.2695])
+chair tensor([375.7551]) tensor([317.4000, 329.3747, 338.9800, 346.7869])
+person tensor([10999.3301]) tensor([412.8000, 236.7850, 465.8500, 444.1240])
+person tensor([811.8516]) tensor([384.4300, 258.7193, 399.5500, 312.4132])
+microwave tensor([353.6491]) tensor([512.2200, 309.1080, 526.9600, 333.1005])
+refrigerator tensor([3301.5747]) tensor([493.1000, 261.9193, 513.3900, 424.6385])
+book tensor([984.7626]) tensor([604.7700, 459.5531, 619.1100, 528.2254])
+book tensor([898.6256]) tensor([613.2400, 463.0836, 626.1200, 532.8526])
+clock tensor([459.2130]) tensor([447.7700, 181.9643, 461.7400, 214.8357])
+vase tensor([4941.3628]) tensor([549.0600, 464.8714, 585.7400, 599.5869])
+vase tensor([385.1919]) tensor([350.7600, 313.7502, 362.1300, 347.6282])
+chair tensor([181.1345]) tensor([412.2500, 329.0442, 421.8800, 347.8535])
+vase tensor([376.6365]) tensor([241.2400, 292.9427, 255.4600, 319.4291])
+vase tensor([244.5568]) tensor([336.7900, 299.7183, 346.5200, 324.8526])
+dining table tensor([16775.2871]) tensor([321.2100, 347.3728, 446.7700, 480.9765])
+
+Contiguous id 0 to name person
+Contiguous id 1 to name bicycle
+Contiguous id 2 to name car
+Contiguous id 3 to name motorcycle
+Contiguous id 4 to name airplane
+Contiguous id 5 to name bus
+Contiguous id 6 to name train
+Contiguous id 7 to name truck
+Contiguous id 8 to name boat
+Contiguous id 9 to name traffic light
+Contiguous id 10 to name fire hydrant
+Contiguous id 11 to name stop sign
+Contiguous id 12 to name parking meter
+Contiguous id 13 to name bench
+Contiguous id 14 to name bird
+Contiguous id 15 to name cat
+Contiguous id 16 to name dog
+Contiguous id 17 to name horse
+Contiguous id 18 to name sheep
+Contiguous id 19 to name cow
+Contiguous id 20 to name elephant
+Contiguous id 21 to name bear
+Contiguous id 22 to name zebra
+Contiguous id 23 to name giraffe
+Contiguous id 24 to name backpack
+Contiguous id 25 to name umbrella
+Contiguous id 26 to name handbag
+Contiguous id 27 to name tie
+Contiguous id 28 to name suitcase
+Contiguous id 29 to name frisbee
+Contiguous id 30 to name skis
+Contiguous id 31 to name snowboard
+Contiguous id 32 to name sports ball
+Contiguous id 33 to name kite
+Contiguous id 34 to name baseball bat
+Contiguous id 35 to name baseball glove
+Contiguous id 36 to name skateboard
+Contiguous id 37 to name surfboard
+Contiguous id 38 to name tennis racket
+Contiguous id 39 to name bottle
+Contiguous id 40 to name wine glass
+Contiguous id 41 to name cup
+Contiguous id 42 to name fork
+Contiguous id 43 to name knife
+Contiguous id 44 to name spoon
+Contiguous id 45 to name bowl
+Contiguous id 46 to name banana
+Contiguous id 47 to name apple
+Contiguous id 48 to name sandwich
+Contiguous id 49 to name orange
+Contiguous id 50 to name broccoli
+Contiguous id 51 to name carrot
+Contiguous id 52 to name hot dog
+Contiguous id 53 to name pizza
+Contiguous id 54 to name donut
+Contiguous id 55 to name cake
+Contiguous id 56 to name chair
+Contiguous id 57 to name couch
+Contiguous id 58 to name potted plant
+Contiguous id 59 to name bed
+Contiguous id 60 to name dining table
+Contiguous id 61 to name toilet
+Contiguous id 62 to name tv
+Contiguous id 63 to name laptop
+Contiguous id 64 to name mouse
+Contiguous id 65 to name remote
+Contiguous id 66 to name keyboard
+Contiguous id 67 to name cell phone
+Contiguous id 68 to name microwave
+Contiguous id 69 to name oven
+Contiguous id 70 to name toaster
+Contiguous id 71 to name sink
+Contiguous id 72 to name refrigerator
+Contiguous id 73 to name book
+Contiguous id 74 to name clock
+Contiguous id 75 to name vase
+Contiguous id 76 to name scissors
+Contiguous id 77 to name teddy bear
+Contiguous id 78 to name hair drier
+Contiguous id 79 to name toothbrush
+
+model output 
+x torch.Size([1, 144, 80, 80])
+x torch.Size([1, 144, 40, 40])
+x torch.Size([1, 144, 20, 20])
+
+tensor([[5.8000e+01, 3.8958e-01, 4.1610e-01, 3.8594e-02, 1.6315e-01],
+        [5.6000e+01, 6.6920e-01, 6.1899e-01, 4.7141e-02, 1.9099e-01],
+        [5.6000e+01, 5.1280e-01, 5.2825e-01, 3.3719e-02, 2.7207e-02],
+        [0.0000e+00, 6.1248e-01, 4.4620e-01, 2.3625e-02, 8.3897e-02],
+        [6.8000e+01, 8.1186e-01, 5.0173e-01, 2.3031e-02, 3.7488e-02],
+        [7.2000e+01, 7.8632e-01, 5.3637e-01, 3.1703e-02, 2.5425e-01],
+        [7.3000e+01, 9.5616e-01, 7.7170e-01, 2.2406e-02, 1.0730e-01],
+        [7.3000e+01, 9.6825e-01, 7.7808e-01, 2.0125e-02, 1.0901e-01],
+        [7.4000e+01, 7.1055e-01, 3.1000e-01, 2.1828e-02, 5.1362e-02],
+        [7.5000e+01, 5.5695e-01, 5.1670e-01, 1.7766e-02, 5.2934e-02],
+        [5.6000e+01, 6.5166e-01, 5.2883e-01, 1.5047e-02, 2.9390e-02],
+        [7.5000e+01, 3.8805e-01, 4.7842e-01, 2.2219e-02, 4.1385e-02],
+        [7.5000e+01, 5.3384e-01, 4.8795e-01, 1.5203e-02, 3.9272e-02]])
+tensor([[6.2000e+01, 9.3420e-01, 5.8346e-01, 1.2711e-01, 1.8481e-01],
+        [5.6000e+01, 6.0466e-01, 6.3255e-01, 8.7500e-02, 2.4138e-01],
+        [5.6000e+01, 5.0251e-01, 6.2732e-01, 9.6609e-02, 2.3117e-01],
+        [0.0000e+00, 6.8645e-01, 5.3196e-01, 8.2891e-02, 3.2397e-01],
+        [7.5000e+01, 8.8656e-01, 8.3161e-01, 5.7312e-02, 2.1049e-01]])
+tensor([[62.0000,  0.1276,  0.5052,  0.2333,  0.2227],
+        [60.0000,  0.6000,  0.6471,  0.1962,  0.2088]])
