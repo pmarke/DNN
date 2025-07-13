@@ -136,6 +136,7 @@ RUN pip3 install tk \
 RUN pip3 install ninja
 RUN MAKEFLAGS="-j6" pip3 install --no-build-isolation flash-attn
 RUN pip3 install thop torchinfo pycocotools
+RUN pip3 install tqdm
 
 # sets the work directory for the subsequent instructions. If the
 # directory does not exist, it will be created. 
