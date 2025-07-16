@@ -44,19 +44,35 @@ class DiMPNet(nn.Module):
         self.score_head = nn.Conv2d(64, 1, kernel_size=1)
         self.iou_predictor = IoUNet(in_channels=64)
 
-        self.residual_fn = ResidualFunction(spatial_size=14)
+        self.residual_fn = ResidualFunction(spatial_size=14, rbf_centers=50)
 
     def forward(self, template, search, iters=5, return_bbox=False, candidate_boxes=None):
         z = self.backbone(template)
         x = self.backbone(search)
         zc = self.cls_feat(z)
         xc = self.cls_feat(x)
+        print("zc",zc.shape)
+        print("xc",xc.shape)
         model = self.init_conv(zc)
         for _ in range(iters):
-            joint = torch.cat([xc, model], dim=1)
+            joint = torch.cat([model, model], dim=1)
             delta = self.update_conv(joint)
             model = model - delta
-        score = self.score_head(model).squeeze(1)
+        
+
+        # Apply filter to search features (cross-correlation)
+        # You may need to upsample model to match xc spatial size, or use a conv2d
+        # Here is a simple depthwise correlation:
+        # For each batch, apply model[b] as a filter to xc[b]
+        score = torch.zeros(xc.shape[0], 1, xc.shape[2], xc.shape[3], device=xc.device)
+        print("score bb", score.shape)
+        for b in range(xc.shape[0]):
+            score[b] = F.conv2d(xc[b:b+1], model[b:b+1], padding=0, groups=64)
+        print("score b", score.shape)
+        score = self.score_head(score)
+        print("score", score.shape)
+
+
         if not return_bbox:
             return score
         if candidate_boxes is None:
@@ -83,6 +99,6 @@ class DiMPNet(nn.Module):
             x_cls = self.cls_feat(feat)
             return self.iou_predictor(x_cls, boxes)
         
-    def compute_residual_loss(self, score_map):
-        res = self.residual_fn(score_map)  # [B, H, W]
+    def compute_residual_loss(self, score_map, centers):
+        res = self.residual_fn(score_map, centers)  # [B, H, W]
         return (res ** 2).mean()
