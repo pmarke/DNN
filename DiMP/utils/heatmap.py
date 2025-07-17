@@ -2,11 +2,13 @@
 import torch
 import numpy as np
 
-def gaussian_heatmap(size, center, sigma=3):
-    x = np.arange(0, size, 1, np.float32)
-    y = x[:, np.newaxis]
+def gaussian_heatmap(size, center, sigma=3, device='cpu', dtype=torch.float32):
+    x = torch.arange(0, size, dtype=dtype, device=device)
+    y = x.unsqueeze(1)
     cx, cy = center
-    return np.exp(-((x - cx)**2 + (y - cy)**2) / (2 * sigma**2))
+    cx = torch.tensor(cx, dtype=dtype, device=device)
+    cy = torch.tensor(cy, dtype=dtype, device=device)
+    return torch.exp(-((x - cx)**2 + (y - cy)**2) / (2 * sigma**2))
 
 def generate_heatmap(boxes, size=20, sigma=2):
     batch = []

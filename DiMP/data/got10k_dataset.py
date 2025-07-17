@@ -18,7 +18,15 @@ class GOT10kDataset(Dataset):
         self.sequences = []
         self.crop_size_scale = 1.2
 
-        self.to_tensor = transforms.ToTensor()
+        # ImageNet normalization
+        self.normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+        self.to_tensor = transforms.Compose([
+            transforms.ToTensor(),
+            self.normalize
+        ])
 
         for seq_dir in sorted(glob.glob(os.path.join(root, '*'))):
             images = sorted(glob.glob(os.path.join(seq_dir, '*.jpg')))
@@ -80,12 +88,12 @@ class GOT10kDataset(Dataset):
         w_new = box[2] * scale_w
         h_new = box[3] * scale_h
         adj_box = torch.tensor([cx_new - w_new / 2, cy_new - h_new / 2, w_new, h_new], dtype=torch.float32)
-        print(adj_box)
         return patch_tensor, adj_box
 
     def __getitem__(self, idx):
         seq = self.sequences[idx]
         frame_ids = sorted(random.sample(list(seq['valid']), self.num_frames))
+        # frame_ids = [0,10]
 
         template_images, template_bboxes = [], []
         search_images, search_bboxes = [], []
@@ -102,25 +110,24 @@ class GOT10kDataset(Dataset):
                 img, box, (cx, cy), (th, tw), self.template_size
             )
             template_images.append(template_img)
+            if (template_bbox < 0).any():
+                print(f"Error: Negative values in template_bbox for sequence {seq['seq_name']}")
             template_bboxes.append(template_bbox)
 
             # Search: random center, but bbox fully inside search window with margin
-            sh = box[3]  * self.crop_size_scale
-            sw = box[2] * self.crop_size_scale
-
-            # still not right
+            sh = box[3]  * self.crop_size_scale*self.search_factor
+            sw = box[2] * self.crop_size_scale*self.search_factor
 
             # Compute allowed range for center
             margin_h = box[3] * self.crop_size_scale
             margin_w = box[2] * self.crop_size_scale
-            min_cx = box[0] + margin_w / 2
-            max_cx = box[0] + box[2] - margin_w / 2
-            min_cx = max(min_cx, sw / 2)
-            max_cx = min(max_cx, img.shape[1] - sw / 2)
-            min_cy = box[1] + margin_h / 2
-            max_cy = box[1] + box[3] - margin_h / 2
-            min_cy = max(min_cy, sh / 2)
-            max_cy = min(max_cy, img.shape[0] - sh / 2)
+
+
+
+            min_cx = cx - margin_w/2 
+            max_cx = cx + margin_w/2
+            min_cy = cy - margin_h/2
+            max_cy = cy + margin_h/2
 
             # If the allowed range is invalid (e.g., box too close to edge), fall back to center
             if min_cx >= max_cx or min_cy >= max_cy:
@@ -129,10 +136,14 @@ class GOT10kDataset(Dataset):
                 cx_rand = np.random.uniform(min_cx, max_cx)
                 cy_rand = np.random.uniform(min_cy, max_cy)
 
+            # cx_rand, cy_rand = cx, cy
+
             search_img, search_bbox = self.crop_and_resize(
                 img, box, (cx_rand, cy_rand), (sh, sw), self.search_window_size
             )
             search_images.append(search_img)
+            if (search_bbox < 0).any():
+                print(f"Error: Negative values in search_bbox for sequence {seq['seq_name']}")
             search_bboxes.append(search_bbox)
 
         return {
@@ -146,6 +157,16 @@ class GOT10kDataset(Dataset):
 
     def show_sample(self, sample):
         import matplotlib.pyplot as plt
+        import numpy as np
+
+        # Helper to invert normalization
+        def denormalize(img_tensor):
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+            img = img_tensor.permute(1, 2, 0).cpu().numpy()
+            img = (img * std) + mean
+            img = np.clip(img, 0, 1)
+            return img
 
         num_frames = len(sample['frame_ids'])
 
@@ -153,7 +174,7 @@ class GOT10kDataset(Dataset):
         for i in range(num_frames):
             img_tensor = sample['template_images'][i]
             bbox = sample['template_bboxes'][i]
-            img = img_tensor.permute(1, 2, 0).numpy()
+            img = denormalize(img_tensor)
             x, y, w, h = bbox.numpy()
             plt.figure()
             plt.imshow(img)
@@ -166,13 +187,13 @@ class GOT10kDataset(Dataset):
             img_tensor = sample['search_images'][i]
             template_bbox = sample['template_bboxes'][i]
             search_bbox = sample['search_bboxes'][i]
-            img = img_tensor.permute(1, 2, 0).numpy()
+            img = denormalize(img_tensor)
             x_t, y_t, w_t, h_t = template_bbox.numpy()
             x_s, y_s, w_s, h_s = search_bbox.numpy()
             plt.figure()
             plt.imshow(img)
-            # plt.gca().add_patch(plt.Rectangle((x_t, y_t), w_t, h_t, edgecolor='r', facecolor='none', linewidth=2, label='Template bbox'))
             plt.gca().add_patch(plt.Rectangle((x_s, y_s), w_s, h_s, edgecolor='g', facecolor='none', linewidth=2, label='Search bbox'))
+            # plt.gca().add_patch(plt.Rectangle((x_t, y_t), w_t, h_t, edgecolor='r', facecolor='none', linewidth=2, label='Template bbox'))
             plt.title(f"Search {i} | Seq: {sample['seq_name']} Frame: {sample['frame_ids'][i]}")
             plt.axis('off')
 
