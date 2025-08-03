@@ -32,8 +32,8 @@ def train_dimp():
 
     for epoch in range(10):
         model.train()
-        total_cls, total_iou = 0.0, 0.0
         for batch in tqdm(loader, desc=f"Epoch {epoch+1}"):
+            total_cls, total_iou = 0.0, 0.0
             # Each batch entry is a list of length batch_size, each containing a list of length num_frames
             # We use the first frame as template, second as search (adjust if num_frames > 2)
             # Collate lists into tensors
@@ -42,17 +42,17 @@ def train_dimp():
             # print(batch['search_bboxes'][0])
             # print(batch.keys())
             
-            # template = batch['template_images'][0].to(device)  # [C, H, W]
-            # search = batch['search_images'][1].to(device)      # [C, H, W]
-            # gt_box = batch['search_bboxes'][1].to(device)      # [4]
+            template = batch['template_images'][0].to(device)  # [C, H, W]
+            search = batch['search_images'][1].to(device)      # [C, H, W]
+            gt_box = batch['search_bboxes'][1].to(device)      # [4]
 
-            sample = dataset[0]
-            print(sample['seq_name'])
-            print(sample['frame_ids'])
-            template = sample['template_images'][0].to(device).unsqueeze(0)  # [C, H, W]
-            search = sample['search_images'][1].to(device).unsqueeze(0)      # [C, H, W]
-            gt_box = sample['search_bboxes'][1].to(device).unsqueeze(0)      # [4]
-            print("Template shape:", template.shape)
+            # sample = dataset[0]
+            # print(sample['seq_name'])
+            # print(sample['frame_ids'])
+            # template = sample['template_images'][0].to(device).unsqueeze(0)  # [C, H, W]
+            # search = sample['search_images'][1].to(device).unsqueeze(0)      # [C, H, W]
+            # gt_box = sample['search_bboxes'][1].to(device).unsqueeze(0)      # [4]
+            # print("Template shape:", template.shape)
 
             batch_idx = torch.arange(len(gt_box), device=device).unsqueeze(1).float()
             boxes_xyxy = box_cxcywh_to_xyxy(gt_box)

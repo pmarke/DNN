@@ -36,7 +36,7 @@ services:
       - type: bind
         source: /tmp/.X11-unix
         target: /tmp/.X11-unix
-      - type: bind
-        source: ${XAUTHORITY}
-        target: ${XAUTHORITY}
+      # - type: bind
+      #   source: ${XAUTHORITY}
+      #   target: ${XAUTHORITY}
       - /var/run/docker.sock:/var/run/docker-host.sock
