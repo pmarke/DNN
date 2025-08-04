@@ -104,6 +104,18 @@ class GOT10kDataset(Dataset):
 
 
     def __getitem__(self, idx):
+        """
+        Retrieves a sample from the GOT-10k dataset at the given index.
+
+        For the selected sequence, randomly samples a set of frame indices and processes each frame to generate:
+        - Centered search window images and bounding boxes, where the target is centered and resized.
+        - Noncentered search window images and bounding boxes, where the target is randomly offset within a valid range.
+        - Corresponding heatmaps for both centered and noncentered windows.
+        
+        Returns a dictionary containing lists of images, bounding boxes, heatmaps, sequence name, and frame IDs.
+        The boxes are in the format [x,y,w,h]
+        
+          """
         seq = self.sequences[idx]
         frame_ids = sorted(random.sample(list(seq['valid']), self.num_frames))
         # frame_ids = [0,10]
@@ -204,7 +216,7 @@ class GOT10kDataset(Dataset):
             # Centered
             img_tensor = sample['centered_images'][i]
             bbox = sample['centered_bbox'][i]
-            heatmap = sample['centered_heatmap'][i].cpu().numpy() if hasattr(sample['centered_heatmap'][i], 'cpu') else sample['centered_heatmap'][i]
+            heatmap = sample['centered_heatmaps'][i].cpu().numpy() if hasattr(sample['centered_heatmaps'][i], 'cpu') else sample['centered_heatmaps'][i]
             heatmap = self.upscale_heatmap(heatmap)
             img = denormalize(img_tensor)
             x, y, w, h = bbox.numpy()
@@ -219,7 +231,7 @@ class GOT10kDataset(Dataset):
             # Noncentered
             img_tensor_nc = sample['noncentered_images'][i]
             bbox_nc = sample['noncentered_bbox'][i]
-            heatmap_nc = sample['noncentered_heatmap'][i].cpu().numpy() if hasattr(sample['noncentered_heatmap'][i], 'cpu') else sample['noncentered_heatmap'][i]
+            heatmap_nc = sample['noncentered_heatmaps'][i].cpu().numpy() if hasattr(sample['noncentered_heatmaps'][i], 'cpu') else sample['noncentered_heatmaps'][i]
             heatmap_nc = self.upscale_heatmap(heatmap_nc)
             img_nc = denormalize(img_tensor_nc)
             x_nc, y_nc, w_nc, h_nc = bbox_nc.numpy()

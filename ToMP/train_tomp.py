@@ -31,7 +31,7 @@ criterion_bbox = torch.nn.MSELoss()
 
 model.train()
 
-sample = dataset[0] 
+# sample = dataset[0] 
 # dataset.show_sample(sample)
 torch.cuda.empty_cache()
 
@@ -41,33 +41,40 @@ for epoch in range(10):
         # Each batch entry is a list of length batch_size, each containing a list of length num_frames
         # We use the first frame as template, second as search (adjust if num_frames > 2)
         # Collate lists into tensors
-        # print(batch['seq_name'])
-        # print(batch['search_bboxes'])
-        # print(batch['search_bboxes'][0])
-        # print(batch.keys())
-        
-        # template = batch['template_images'][0].to(device)  # [C, H, W]
-        # search = batch['search_images'][1].to(device)      # [C, H, W]
-        # gt_box = batch['search_bboxes'][1].to(device)      # [4]
+   
 
         sample = dataset[0]
         print(sample['seq_name'])
         print(sample['frame_ids'])
         training_images = []
-        training_images.append(sample['centered_images'][0].to(device).unsqueeze(0))  # [C, H, W]
-        training_images.append(sample['centered_images'][1].to(device).unsqueeze(0))  # [C, H, W]
-        test_image = sample['centered_images'][2].to(device).unsqueeze(0)
-        heatmap = sample['centered_heatmaps'][2].to(device).unsqueeze(0)  # [1, H, W]
+        training_images.append(sample['noncentered_images'][0].to(device).unsqueeze(0))  # [C, H, W]
+        training_images.append(sample['noncentered_images'][1].to(device).unsqueeze(0))  # [C, H, W]
+        test_image = sample['noncentered_images'][2].to(device).unsqueeze(0)
+        heatmap = sample['noncentered_heatmaps'][2].to(device).unsqueeze(0)  # [1, H, W]
         training_boxes = []
-        training_boxes.append(sample['centered_bbox'][0].to(device).unsqueeze(0))
-        training_boxes.append(sample['centered_bbox'][1].to(device).unsqueeze(0))
-        test_box = sample['centered_bbox'][2].to(device).unsqueeze(0)
+        training_boxes.append(sample['noncentered_bbox'][0].to(device).unsqueeze(0))
+        training_boxes.append(sample['noncentered_bbox'][1].to(device).unsqueeze(0))
+        test_box = sample['noncentered_bbox'][2].to(device).unsqueeze(0)
+
+        print("test_box before",test_box)
+
+        # Convert test_box from [B, x, y, w, h] to [B, l, t, r, b] in the
+        # search window frame
+        test_box_ltrb = torch.zeros_like(test_box)
+        test_box_ltrb[:, 0] = test_box[:, 0] 
+        test_box_ltrb[:, 1] = test_box[:, 1]
+        test_box_ltrb[:, 2] = test_box[:, 0] + test_box[:, 2]   # r = x + w/2
+        test_box_ltrb[:, 3] = test_box[:, 1] + test_box[:, 3]   # b = y + h/2
+        test_box = test_box_ltrb
+        print("test box", test_box)
 
         y_cls, ltrb, max_locations = model(training_images,test_image,training_boxes)
-        print("y_cls", y_cls)
+        # print("y_cls", y_cls)
+        print("max_locations", max_locations)
+        print("ltrb", ltrb)
 
-        print("y_cls shape:", y_cls.shape)
-        print("heatmap shape:", heatmap.shape)
+        # print("y_cls shape:", y_cls.shape)
+        # print("heatmap:", torch.sigmoid(y_cls))
 
         cls_loss = criterion_cls(y_cls, heatmap) 
         box_loss = criterion_bbox(ltrb, test_box)
